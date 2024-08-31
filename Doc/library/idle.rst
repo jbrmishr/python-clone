@@ -102,9 +102,9 @@ Close Window
    to save your work. If there is an unsaved Shell, you will be asked whether
    you want to quit execution.
 
-   In the Shell, you can call ``exit()`` and ``quit()`` to close the Shell.
+   In the Shell, you can call ``exit()`` or ``quit()`` to close the Shell.
    If the :ref:`new interactive interpreter <tut-interac>` is enabled,
-   IDLE also supports using ``exit`` and ``quit`` without the need to call them
+   IDLE also supports using ``exit`` or ``quit`` without the need to call them
    as functions. If this is the only window, closing it will also exit IDLE.
 
 Exit IDLE
