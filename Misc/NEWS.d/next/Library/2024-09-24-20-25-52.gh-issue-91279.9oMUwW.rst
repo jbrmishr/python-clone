@@ -1,0 +1,3 @@
+``ZipFile.writestr`` now respect SOURCE_DATE_EPOCH, that distributions can
+set centrally and have build tools consume this in order to produce
+reproducible output.
