@@ -34,7 +34,7 @@ propagated, additional calls into the Python/C API may not behave as intended
 and may fail in mysterious ways.
 
 .. note::
-   The error indicator is **not** the result of :func:`sys.exc_info()`.
+   The error indicator is **not** the result of :func:`sys.exc_info`.
    The former corresponds to an exception that is not yet caught (and is
    therefore still propagating), while the latter returns an exception after
    it is caught (and has therefore stopped propagating).
@@ -104,7 +104,7 @@ Printing and clearing
    Similar to :c:func:`PyErr_WriteUnraisable`, but the *format* and subsequent
    parameters help format the warning message; they have the same meaning and
    values as in :c:func:`PyUnicode_FromFormat`.
-   ``PyErr_WriteUnraisable(obj)`` is roughtly equivalent to
+   ``PyErr_WriteUnraisable(obj)`` is roughly equivalent to
    ``PyErr_FormatUnraisable("Exception ignored in: %R", obj)``.
    If *format* is ``NULL``, only the traceback is printed.
 
@@ -1004,6 +1004,7 @@ the variables:
    single: PyExc_OverflowError (C var)
    single: PyExc_PermissionError (C var)
    single: PyExc_ProcessLookupError (C var)
+   single: PyExc_PythonFinalizationError (C var)
    single: PyExc_RecursionError (C var)
    single: PyExc_ReferenceError (C var)
    single: PyExc_RuntimeError (C var)
@@ -1095,6 +1096,8 @@ the variables:
 | :c:data:`PyExc_PermissionError`         | :exc:`PermissionError`          |          |
 +-----------------------------------------+---------------------------------+----------+
 | :c:data:`PyExc_ProcessLookupError`      | :exc:`ProcessLookupError`       |          |
++-----------------------------------------+---------------------------------+----------+
+| :c:data:`PyExc_PythonFinalizationError` | :exc:`PythonFinalizationError`  |          |
 +-----------------------------------------+---------------------------------+----------+
 | :c:data:`PyExc_RecursionError`          | :exc:`RecursionError`           |          |
 +-----------------------------------------+---------------------------------+----------+
