@@ -4,7 +4,6 @@ import fnmatch
 import sys
 import os
 from inspect import CO_GENERATOR, CO_COROUTINE, CO_ASYNC_GENERATOR
-from functools import partial
 
 __all__ = ["BdbQuit", "Bdb", "Breakpoint"]
 
@@ -18,10 +17,25 @@ class BdbQuit(Exception):
 E = sys.monitoring.events
 
 class _MonitoringTracer:
+    EVENT_CALLBACK_MAP = {
+        E.PY_START: 'call',
+        E.PY_RESUME: 'call',
+        E.PY_THROW: 'call',
+        E.LINE: 'line',
+        E.JUMP: 'jump',
+        E.PY_RETURN: 'return',
+        E.PY_YIELD: 'return',
+        E.PY_UNWIND: 'unwind',
+        E.RAISE: 'exception',
+        E.STOP_ITERATION: 'exception',
+        E.INSTRUCTION: 'opcode',
+    }
+
     def __init__(self):
         self._tool_id = sys.monitoring.DEBUGGER_ID
         self._name = 'bdbtracer'
         self._tracefunc = None
+        self._disable_current_event = False
 
     def start_trace(self, tracefunc):
         self._tracefunc = tracefunc
@@ -34,26 +48,11 @@ class _MonitoringTracer:
             raise ValueError('Another debugger is using the monitoring tool')
         E = sys.monitoring.events
         all_events = 0
-        for event in (E.PY_START, E.PY_RESUME, E.PY_THROW):
-            sys.monitoring.register_callback(self._tool_id, event, self.call_callback)
-            all_events |= event
-        for event in (E.LINE, ):
-            sys.monitoring.register_callback(self._tool_id, event, self.line_callback)
-            all_events |= event
-        for event in (E.JUMP, ):
-            sys.monitoring.register_callback(self._tool_id, event, self.jump_callback)
-            all_events |= event
-        for event in (E.PY_RETURN, E.PY_YIELD):
-            sys.monitoring.register_callback(self._tool_id, event, self.return_callback)
-            all_events |= event
-        for event in (E.PY_UNWIND, ):
-            sys.monitoring.register_callback(self._tool_id, event, self.unwind_callback)
-            all_events |= event
-        for event in (E.RAISE, E.STOP_ITERATION):
-            sys.monitoring.register_callback(self._tool_id, event, self.exception_callback)
-            all_events |= event
-        for event in (E.INSTRUCTION, ):
-            sys.monitoring.register_callback(self._tool_id, event, self.opcode_callback)
+        for event, cb_name in self.EVENT_CALLBACK_MAP.items():
+            callback = getattr(self, f'{cb_name}_callback')
+            sys.monitoring.register_callback(self._tool_id, event, callback)
+            if event != E.INSTRUCTION:
+                all_events |= event
         self.check_trace_opcodes()
         sys.monitoring.set_events(self._tool_id, all_events)
 
@@ -61,21 +60,37 @@ class _MonitoringTracer:
         curr_tool = sys.monitoring.get_tool(self._tool_id)
         if curr_tool != self._name:
             return
-        for event in (E.PY_START, E.PY_RESUME, E.PY_RETURN, E.PY_YIELD, E.RAISE, E.LINE,
-                      E.JUMP, E.PY_UNWIND, E.PY_THROW, E.STOP_ITERATION):
+        for event in self.EVENT_CALLBACK_MAP.keys():
             sys.monitoring.register_callback(self._tool_id, event, None)
         sys.monitoring.set_events(self._tool_id, 0)
         self.check_trace_opcodes()
         sys.monitoring.free_tool_id(self._tool_id)
 
+    def disable_current_event(self):
+        self._disable_current_event = True
+
+    def restart_events(self):
+        if sys.monitoring.get_tool(self._tool_id) == self._name:
+            sys.monitoring.restart_events()
+
     def callback_wrapper(func):
+        import functools
+
+        @functools.wraps(func)
         def wrapper(self, *args):
             try:
                 frame = sys._getframe().f_back
-                return func(self, frame, *args)
+                ret = func(self, frame, *args)
+                if self._disable_current_event:
+                    return sys.monitoring.DISABLE
+                else:
+                    return ret
             except Exception:
                 self.stop_trace()
                 raise
+            finally:
+                self._disable_current_event = False
+
         return wrapper
 
     @callback_wrapper
@@ -275,6 +290,8 @@ class Bdb:
         if self.stop_here(frame) or self.break_here(frame):
             self.user_line(frame)
             if self.quitting: raise BdbQuit
+        else:
+            self.disable_current_event()
         return self.trace_dispatch
 
     def dispatch_call(self, frame, arg):
@@ -296,6 +313,7 @@ class Bdb:
         if self.stopframe and frame.f_code.co_flags & GENERATOR_AND_COROUTINE_FLAGS:
             return self.trace_dispatch
         self.user_call(frame, arg)
+        self.restart_events()
         if self.quitting: raise BdbQuit
         return self.trace_dispatch
 
@@ -313,6 +331,7 @@ class Bdb:
             try:
                 self.frame_returning = frame
                 self.user_return(frame, arg)
+                self.restart_events()
             finally:
                 self.frame_returning = None
             if self.quitting: raise BdbQuit
@@ -340,6 +359,7 @@ class Bdb:
             if not (frame.f_code.co_flags & GENERATOR_AND_COROUTINE_FLAGS
                     and arg[0] is StopIteration and arg[2] is None):
                 self.user_exception(frame, arg)
+                self.restart_events()
                 if self.quitting: raise BdbQuit
         # Stop at the StopIteration or GeneratorExit exception when the user
         # has set stopframe in a generator by issuing a return command, or a
@@ -349,6 +369,7 @@ class Bdb:
                 and self.stopframe.f_code.co_flags & GENERATOR_AND_COROUTINE_FLAGS
                 and arg[0] in (StopIteration, GeneratorExit)):
             self.user_exception(frame, arg)
+            self.restart_events()
             if self.quitting: raise BdbQuit
 
         return self.trace_dispatch
@@ -361,6 +382,7 @@ class Bdb:
         """
         if self.stop_here(frame) or self.break_here(frame):
             self.user_opcode(frame)
+            self.restart_events()
             if self.quitting: raise BdbQuit
         return self.trace_dispatch
 
@@ -787,6 +809,16 @@ class Bdb:
         else:
             s += f'{lprefix}Warning: lineno is None'
         return s
+
+    def disable_current_event(self):
+        """Disable the current event."""
+        if self.backend == 'monitoring':
+            self.monitoring_tracer.disable_current_event()
+
+    def restart_events(self):
+        """Restart all events."""
+        if self.backend == 'monitoring':
+            self.monitoring_tracer.restart_events()
 
     # The following methods can be called by clients to use
     # a debugger to debug a statement or an expression.
