@@ -1904,10 +1904,10 @@ class ZipFile:
         if isinstance(data, str):
             data = data.encode("utf-8")
         if not isinstance(zinfo_or_arcname, ZipInfo):
-            time_ = os.environ.get('SOURCE_DATE_EPOCH') or time.time()
-            date_time = time.gmtime(time_)[:6]
+            epoch = os.environ.get('SOURCE_DATE_EPOCH')
+            get_time = int(epoch) if epoch else time.time()
             zinfo = ZipInfo(filename=zinfo_or_arcname,
-                            date_time=date_time)
+                            date_time=time.gmtime(get_time)[:6])
             zinfo.compress_type = self.compression
             zinfo.compress_level = self.compresslevel
             if zinfo.filename.endswith('/'):

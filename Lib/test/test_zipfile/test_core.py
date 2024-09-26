@@ -1780,6 +1780,27 @@ class OtherTests(unittest.TestCase):
                 zinfo.flag_bits |= zipfile._MASK_USE_DATA_DESCRIPTOR  # Include an extended local header.
                 orig_zip.writestr(zinfo, data)
 
+    def test_write_with_source_date_epoch(self):
+        os.environ['SOURCE_DATE_EPOCH'] = "1727351057"
+
+        with zipfile.ZipFile(TESTFN, "w") as zf:
+            zf.writestr("test_source_date_epoch.txt", "Testing SOURCE_DATE_EPOCH")
+
+        with zipfile.ZipFile(TESTFN, "r") as zf:
+            zip_info = zf.getinfo("test_source_date_epoch.txt")
+            self.assertEqual(zip_info.date_time, time.gmtime(int(os.environ['SOURCE_DATE_EPOCH']))[:6])
+
+    def test_write_without_source_date_epoch(self):
+        if 'SOURCE_DATE_EPOCH' in os.environ:
+            del os.environ['SOURCE_DATE_EPOCH']
+
+        with zipfile.ZipFile(TESTFN, "w") as zf:
+            zf.writestr("test_no_source_date_epoch.txt", "Testing without SOURCE_DATE_EPOCH")
+
+        with zipfile.ZipFile(TESTFN, "r") as zf:
+            zip_info = zf.getinfo("test_no_source_date_epoch.txt")
+            self.assertNotEqual(zip_info.date_time, time.gmtime()[:6])
+
     def test_close(self):
         """Check that the zipfile is closed after the 'with' block."""
         with zipfile.ZipFile(TESTFN2, "w") as zipfp:
