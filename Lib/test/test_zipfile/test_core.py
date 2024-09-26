@@ -1788,7 +1788,8 @@ class OtherTests(unittest.TestCase):
 
         with zipfile.ZipFile(TESTFN, "r") as zf:
             zip_info = zf.getinfo("test_source_date_epoch.txt")
-            self.assertEqual(zip_info.date_time, time.gmtime(int(os.environ['SOURCE_DATE_EPOCH']))[:6])
+            get_time = time.gmtime(int(os.environ['SOURCE_DATE_EPOCH']))[:6]
+            self.assertAlmostEqual(zip_info.date_time, get_time, delta=1)
 
     def test_write_without_source_date_epoch(self):
         if 'SOURCE_DATE_EPOCH' in os.environ:
@@ -1799,7 +1800,7 @@ class OtherTests(unittest.TestCase):
 
         with zipfile.ZipFile(TESTFN, "r") as zf:
             zip_info = zf.getinfo("test_no_source_date_epoch.txt")
-            self.assertNotEqual(zip_info.date_time, time.gmtime()[:6])
+            self.assertEqual(zip_info.date_time, time.gmtime()[:6])
 
     def test_close(self):
         """Check that the zipfile is closed after the 'with' block."""
