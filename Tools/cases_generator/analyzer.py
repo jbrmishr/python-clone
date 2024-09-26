@@ -464,9 +464,9 @@ NON_ESCAPING_FUNCTIONS = (
     "PyStackRef_FromPyObjectSteal",
     "PyStackRef_AsPyObjectBorrow",
     "PyStackRef_AsPyObjectSteal",
-    "PyStackRef_CLOSE",
+    # "PyStackRef_CLOSE",
     "PyStackRef_DUP",
-    "PyStackRef_CLEAR",
+    # "PyStackRef_CLEAR",
     "PyStackRef_IsNull",
     "PyStackRef_TYPE",
     "PyStackRef_False",
@@ -482,8 +482,8 @@ NON_ESCAPING_FUNCTIONS = (
     "_PyObject_ManagedDictPointer",
     "_PyObject_InlineValues",
     "_PyDictValues_AddToInsertionOrder",
-    "Py_DECREF",
-    "Py_XDECREF",
+    # "Py_DECREF",
+    # "Py_XDECREF",
     "_Py_DECREF_SPECIALIZED",
     "DECREF_INPUTS_AND_REUSE_FLOAT",
     "PyUnicode_Append",
@@ -528,7 +528,7 @@ NON_ESCAPING_FUNCTIONS = (
     "STAT_INC",
     "maybe_lltrace_resume_frame",
     "_PyUnicode_JoinArray",
-    "_PyEval_FrameClearAndPop",
+    # "_PyEval_FrameClearAndPop",
     "_PyFrame_StackPush",
     "PyCell_New",
     "PyFloat_AS_DOUBLE",
@@ -545,6 +545,8 @@ NON_ESCAPING_FUNCTIONS = (
 ESCAPING_FUNCTIONS = (
     "import_name",
     "import_from",
+    "DECREF_INPUTS",
+    "SETLOCAL",
 )
 
 
