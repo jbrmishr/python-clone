@@ -667,7 +667,7 @@ class DirtyZipInfo(zipfile.ZipInfo):
         TODO: extract this functionality and re-use
         """
         epoch = os.environ.get('SOURCE_DATE_EPOCH')
-        get_time = int(epoch) if epoch is not None else time.time()
+        get_time = int(epoch) if epoch else time.time()
         self = cls(filename=name, date_time=time.gmtime(get_time)[:6])
         self.compress_type = archive.compression
         self.compress_level = archive.compresslevel

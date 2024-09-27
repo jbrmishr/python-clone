@@ -1904,6 +1904,7 @@ class ZipFile:
         if isinstance(data, str):
             data = data.encode("utf-8")
         if not isinstance(zinfo_or_arcname, ZipInfo):
+            # gh-91279: Set the SOURCE_DATE_EPOCH to a specific timestamp
             epoch = os.environ.get('SOURCE_DATE_EPOCH')
             get_time = int(epoch) if epoch else time.time()
             zinfo = ZipInfo(filename=zinfo_or_arcname,
