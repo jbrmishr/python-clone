@@ -1058,15 +1058,14 @@ class CmdLineTest(unittest.TestCase):
         code = "import os"
         res = assert_python_ok('-X', 'importtime', '-c', code)
         res_err = res.err.decode("utf-8")
-        self.assertRegex(res_err, r"import time: \s*\d+ | \s*\d+ | \s*os")
-        self.assertRegex(res_err, r"import time: cached\s* | cached\s* | os")
-        self.assertEqual(res_err.count(" os"), 1)
+        self.assertRegex(res_err, r"import time: \s*\d+ \| \s*\d+ \| \s*os")
+        self.assertNotRegex(res_err, r"import time: cached\s* \| cached\s* \| os")
 
         code = "import os; import os"
         res = assert_python_ok('-X', 'importtime=2', '-c', code)
         res_err = res.err.decode("utf-8")
-        self.assertRegex(res_err, r"import time: \s*\d+ | \s*\d+ | \s*os")
-        self.assertRegex(res_err, r"import time: cached\s* | cached\s* | os")
+        self.assertRegex(res_err, r"import time: \s*\d+ \| \s*\d+ \| \s*os")
+        self.assertRegex(res_err, r"import time: cached\s* \| cached\s* \| os")
 
     def res2int(self, res):
         out = res.out.strip().decode("utf-8")
