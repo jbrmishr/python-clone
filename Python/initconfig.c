@@ -203,7 +203,8 @@ The following implementation-specific options are available:\n\
 "-X gil=[0|1]: enable (1) or disable (0) the GIL; also PYTHON_GIL\n"
 #endif
 "\
--X importtime: show how long each import takes; also PYTHONPROFILEIMPORTTIME\n\
+-X importtime[=2]: show how long each import takes; -X importtime=2 also prints\
+         rows for imports of already-loaded modules; also PYTHONPROFILEIMPORTTIME\n\
 -X int_max_str_digits=N: limit the size of int<->str conversions;\n\
          0 disables the limit; also PYTHONINTMAXSTRDIGITS\n\
 -X no_debug_ranges: don't include extra location information in code objects;\n\
@@ -1907,13 +1908,12 @@ config_set_import_time(PyConfig *config, const wchar_t *value)
  * PYTHONPROFILEIMPORTTIME environment variable. Defaults to 0.
  */
 static PyStatus
-config_read_import_time(PyConfig* config)
+config_read_import_time(PyConfig *config)
 {
     /* Check the -X option first. */
     const wchar_t *xoption_value = NULL;
     xoption_value = config_get_xoption_value(config, L"importtime");
-    if (xoption_value != NULL)
-    {
+    if (xoption_value != NULL) {
         return config_set_import_time(config, xoption_value);
     }
 
@@ -1927,7 +1927,9 @@ config_read_import_time(PyConfig* config)
         return status;
     }
     if (env_value != NULL) {
-        return config_set_import_time(config, env_value);
+        status = config_set_import_time(config, env_value);
+        PyMem_RawFree(env_value);
+        return status;
     }
 
     return _PyStatus_OK();
