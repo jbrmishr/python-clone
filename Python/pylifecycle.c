@@ -2040,6 +2040,7 @@ _Py_Finalize(_PyRuntimeState *runtime)
        before we call destructors. */
     PyThreadState *list = _PyThreadState_RemoveExcept(tstate);
     _PyEval_StartTheWorldAll(runtime);
+    _PyThread_DaemonThreadsForceKilled(tstate->interp);
     _PyThreadState_DeleteList(list);
 
     /* At this point no Python code should be running at all.
