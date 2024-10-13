@@ -679,13 +679,11 @@ class ModifiedInterpreter(InteractiveInterpreter):
 
     def runsource(self, source):
         "Extend base class method: Stuff the source in the line cache first"
-        from _pyrepl.main import CAN_USE_PYREPL
         filename = self.stuffsource(source)
-
         # Synchronize the new interactive shell in Python 3.13
         # help, exit, license and quit without the need to call them as functions
         # To disable, set the PYTHON_BASIC_REPL environment variable
-        if CAN_USE_PYREPL and not os.getenv('PYTHON_BASIC_REPL'):
+        if not os.getenv('PYTHON_BASIC_REPL'):
             REPL_COMMANDS = {
                 "quit": "quit()",
                 "exit": "exit()",
