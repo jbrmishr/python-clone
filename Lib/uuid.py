@@ -45,6 +45,7 @@ Typical usage:
 """
 
 import os
+import re
 import sys
 
 from enum import Enum, _simple_enum
@@ -176,8 +177,8 @@ class UUID:
                             'or int arguments must be given')
         if hex is not None:
             hex = hex.replace('urn:', '').replace('uuid:', '')
-            hex = hex.strip("{}").replace("-", "").replace("_", "")
-            if len(hex) != 32:
+            hex = hex.strip('{}').replace('-', '')
+            if not re.fullmatch(r'[0-9A-Fa-f]{32}', hex):
                 raise ValueError('badly formed hexadecimal UUID string')
             int = int_(hex, 16)
         if bytes_le is not None:
