@@ -3160,6 +3160,43 @@
             DISPATCH();
         }
 
+        TARGET(CHECK_ITERABLE) {
+            frame->instr_ptr = next_instr;
+            next_instr += 1;
+            INSTRUCTION_STATS(CHECK_ITERABLE);
+            _PyStackRef iterable_st;
+            iterable_st = stack_pointer[-1];
+            PyObject *iterable = PyStackRef_AsPyObjectBorrow(iterable_st);
+            PyTypeObject *type = Py_TYPE(iterable);
+            if (oparg == 0) {
+                // Sync case, similar to GET_ITER
+                if (type->tp_iter == NULL && !PySequence_Check(iterable)) {
+                    _PyFrame_SetStackPointer(frame, stack_pointer);
+                    PyErr_Format(PyExc_TypeError,
+                                 "'%.200s' object is not iterable",
+                                 type->tp_name);
+                    stack_pointer = _PyFrame_GetStackPointer(frame);
+                    goto error;
+                }
+            } else {
+                if (oparg == 1) {
+                    // Async case, similar to GET_AITER
+                    if (type->tp_as_async == NULL || type->tp_as_async->am_aiter == NULL) {
+                        _PyFrame_SetStackPointer(frame, stack_pointer);
+                        PyErr_Format(PyExc_TypeError,
+                                 "'async for' requires an object with "
+                                 "__aiter__ method, got %.200s",
+                                 type->tp_name);
+                        stack_pointer = _PyFrame_GetStackPointer(frame);
+                        goto error;
+                    }
+                } else {
+                    Py_UNREACHABLE();
+                }
+            }
+            DISPATCH();
+        }
+
         TARGET(CLEANUP_THROW) {
             _Py_CODEUNIT* const this_instr = frame->instr_ptr = next_instr;
             (void)this_instr;
