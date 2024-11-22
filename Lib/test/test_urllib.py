@@ -11,6 +11,7 @@ from test import support
 from test.support import os_helper
 from test.support import socket_helper
 import os
+import socket
 try:
     import ssl
 except ImportError:
@@ -156,7 +157,7 @@ class urlopen_FileTests(unittest.TestCase):
         self.assertIsInstance(self.returned_obj.headers, email.message.Message)
 
     def test_url(self):
-        self.assertEqual(self.returned_obj.url, "file://" + self.quoted_pathname)
+        self.assertEqual(self.returned_obj.url, "file:" + self.quoted_pathname)
 
     def test_status(self):
         self.assertIsNone(self.returned_obj.status)
@@ -165,7 +166,7 @@ class urlopen_FileTests(unittest.TestCase):
         self.assertIsInstance(self.returned_obj.info(), email.message.Message)
 
     def test_geturl(self):
-        self.assertEqual(self.returned_obj.geturl(), "file://" + self.quoted_pathname)
+        self.assertEqual(self.returned_obj.geturl(), "file:" + self.quoted_pathname)
 
     def test_getcode(self):
         self.assertIsNone(self.returned_obj.getcode())
@@ -471,7 +472,7 @@ Connection: close
 
     def test_file_notexists(self):
         fd, tmp_file = tempfile.mkstemp()
-        tmp_fileurl = 'file://localhost/' + tmp_file.replace(os.path.sep, '/')
+        tmp_fileurl = 'file:' + urllib.request.pathname2url(tmp_file)
         try:
             self.assertTrue(os.path.exists(tmp_file))
             with urllib.request.urlopen(tmp_fileurl) as fobj:
@@ -1511,10 +1512,12 @@ class Pathname_Tests(unittest.TestCase):
     def test_url2pathname_posix(self):
         fn = urllib.request.url2pathname
         self.assertEqual(fn('/foo/bar'), '/foo/bar')
-        self.assertEqual(fn('//foo/bar'), '//foo/bar')
+        self.assertRaises(urllib.error.URLError, fn, '//foo/bar')
         self.assertEqual(fn('///foo/bar'), '/foo/bar')
         self.assertEqual(fn('////foo/bar'), '//foo/bar')
-        self.assertEqual(fn('//localhost/foo/bar'), '//localhost/foo/bar')
+        self.assertEqual(fn('//localhost/foo/bar'), '/foo/bar')
+        self.assertEqual(fn('//127.0.0.1/foo/bar'), '/foo/bar')
+        self.assertEqual(fn(f'//{socket.gethostname()}/foo/bar'), '/foo/bar')
 
     @unittest.skipUnless(os_helper.FS_NONASCII, 'need os_helper.FS_NONASCII')
     def test_url2pathname_nonascii(self):
