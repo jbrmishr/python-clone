@@ -17,6 +17,7 @@ import threading
 import unittest
 import warnings
 from test import support
+from test.support import os_helper, script_helper
 from test.support import _4G, bigmemtest
 from test.support.import_helper import import_fresh_module
 from test.support import os_helper
@@ -1195,6 +1196,18 @@ class KDFTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             with open(os_helper.TESTFN, "wb") as f:
                 hashlib.file_digest(f, "sha256")
+
+    def test_builtins_in_openssl_fips_mode(self):
+        try:
+            from _hashlib import get_fips_mode
+        except ImportError:
+            self.skipTest('OpenSSL _hashlib not available')
+        from test import _test_hashlib_fips
+        child_test_path = _test_hashlib_fips.__file__
+        env = os.environ.copy()
+        # A config to mock FIPS mode, see _test_hashlib_fips.py.
+        env["OPENSSL_CONF"] = os.path.join(os.path.dirname(__file__), "hashlibdata", "openssl.cnf")
+        script_helper.run_test_script(child_test_path, env=env)
 
 
 if __name__ == "__main__":
