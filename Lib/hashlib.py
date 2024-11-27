@@ -91,7 +91,7 @@ def __usedforsecurity_check(md, name, *args, **kwargs):
 # implementations are treated as an unapproved implementation, as they
 # are unlikely to have been certified by NIST.
 def __get_wrapped_builtin(md, name):
-    if _hashlib is not None and _hashlib.get_fips_mode() == 1:
+    if _hashlib is not None and _hashlib.get_fips_mode() != 0:
         from functools import partial
         return partial(__usedforsecurity_check, md, name)
     return md
@@ -178,8 +178,7 @@ def __hash_new(name, data=b'', **kwargs):
     except ValueError:
         # If the _hashlib module (OpenSSL) doesn't support the named
         # hash, try using our builtin implementations.
-        # This allows for SHA224/256 and SHA384/512 support even though
-        # the OpenSSL library prior to 0.9.8 doesn't provide them.
+        # OpenSSL may not have been compiled to support everything.
         return __get_builtin_constructor(name)(data, **kwargs)
 
 
