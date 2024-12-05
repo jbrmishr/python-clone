@@ -1,1 +1,1 @@
-Fix segfault in ``_bootstrap_python`` when building Cpython on Linux/m68k.
+Fix crash when building on Linux/m68k.
