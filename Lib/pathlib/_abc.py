@@ -87,6 +87,128 @@ class ParserBase:
         raise UnsupportedOperation(self._unsupported_msg('isabs()'))
 
 
+class CopierBase:
+    """Base class for path copiers, which transfer files and directories from
+    one path object to another.
+
+    A reference to this class is available as PathBase._copier. When
+    PathBase.copy() is called, it uses the copier type of the *target* path to
+    perform the copy; this allows writing of data and metadata to occur
+    together (or in a particular order) where supported or required by the
+    path type.
+    """
+    __slots__ = ('follow_symlinks', 'dirs_exist_ok', 'preserve_metadata')
+
+    def __init__(self, follow_symlinks=True, dirs_exist_ok=False,
+                 preserve_metadata=False):
+        self.follow_symlinks = follow_symlinks
+        self.dirs_exist_ok = dirs_exist_ok
+        self.preserve_metadata = preserve_metadata
+
+    @classmethod
+    def ensure_different_files(cls, source, target, dir_entry=None):
+        """Raise OSError(EINVAL) if both paths refer to the same file."""
+        try:
+            target_st = target.stat()
+            try:
+                source_st = dir_entry.stat()
+            except AttributeError:
+                source_st = source.stat()
+        except (OSError, ValueError):
+            return
+        if source_st.st_ino != target_st.st_ino:
+            return  # Different inode
+        if source_st.st_dev != target_st.st_dev:
+            return  # Different device
+        err = OSError(EINVAL, "Source and target are the same file")
+        err.filename = str(source)
+        err.filename2 = str(target)
+        raise err
+
+    @classmethod
+    def ensure_distinct_paths(cls, source, target):
+        """Raise OSError(EINVAL) if the target is within the source path."""
+        # Note: there is no straightforward, foolproof algorithm to determine
+        # if one directory is within another (a particularly perverse example
+        # would be a single network share mounted in one location via NFS, and
+        # in another location via CIFS), so we simply checks whether the
+        # other path is lexically equal to, or within, this path.
+        if source == target:
+            err = OSError(EINVAL, "Source and target are the same path")
+        elif source in target.parents:
+            err = OSError(EINVAL, "Source path is a parent of target path")
+        else:
+            return
+        err.filename = str(source)
+        err.filename2 = str(target)
+        raise err
+
+    def copy(self, source, target):
+        """Copy the given file or directory tree to the given target."""
+        self.ensure_distinct_paths(source, target)
+        if self.preserve_metadata:
+            metadata_keys = source._readable_metadata & target._writable_metadata
+        else:
+            metadata_keys = None
+        if not self.follow_symlinks and source.is_symlink():
+            self.copy_symlink(source, target, metadata_keys)
+        elif source.is_dir():
+            self.copy_dir(source, target, metadata_keys)
+        else:
+            self.copy_file(source, target, metadata_keys)
+
+    def copy_dir(self, source, target, metadata_keys, dir_entry=None):
+        """Copy the given directory to the given target."""
+        if metadata_keys:
+            metadata = source._read_metadata(metadata_keys, dir_entry=dir_entry)
+        else:
+            metadata = None
+        with source.scandir() as entries:
+            target.mkdir(exist_ok=self.dirs_exist_ok)
+            for entry in entries:
+                src = source._join_dir_entry(entry)
+                dst = target.joinpath(entry.name)
+                if not self.follow_symlinks and entry.is_symlink():
+                    self.copy_symlink(src, dst, metadata_keys, entry)
+                elif entry.is_dir():
+                    self.copy_dir(src, dst, metadata_keys, entry)
+                else:
+                    self.copy_file(src, dst, metadata_keys, entry)
+            if metadata:
+                target._write_metadata(metadata)
+
+    def copy_file(self, source, target, metadata_keys, dir_entry=None):
+        """Copy the given file to the given target."""
+        self.ensure_different_files(source, target, dir_entry)
+        if metadata_keys:
+            metadata = source._read_metadata(metadata_keys, dir_entry=dir_entry)
+        else:
+            metadata = None
+        with source.open('rb') as source_f:
+            try:
+                with target.open('wb') as target_f:
+                    copyfileobj(source_f, target_f)
+            except IsADirectoryError as e:
+                if not target.exists():
+                    # Raise a less confusing exception.
+                    raise FileNotFoundError(
+                        f'Directory does not exist: {target}') from e
+                raise
+            if metadata:
+                target._write_metadata(metadata)
+
+    def copy_symlink(self, source, target, metadata_keys, dir_entry=None):
+        """Copy the given symlink to the given target."""
+        if metadata_keys:
+            metadata = source._read_metadata(
+                metadata_keys, follow_symlinks=False, dir_entry=dir_entry)
+        else:
+            metadata = None
+        target.symlink_to(source.readlink())
+        if metadata:
+            target._write_metadata(metadata, follow_symlinks=False)
+
+
 class PathGlobber(_GlobberBase):
     """
     Class providing shell-style globbing for path objects.
@@ -426,6 +548,9 @@ class PathBase(PurePathBase):
 
     # Maximum number of symlinks to follow in resolve()
     _max_symlinks = 40
+    _copier = CopierBase
+    _readable_metadata = frozenset()
+    _writable_metadata = frozenset()
 
     @classmethod
     def _unsupported_msg(cls, attribute):
@@ -558,39 +683,6 @@ class PathBase(PurePathBase):
         return (st.st_ino == other_st.st_ino and
                 st.st_dev == other_st.st_dev)
 
-    def _ensure_different_file(self, other_path):
-        """
-        Raise OSError(EINVAL) if both paths refer to the same file.
-        """
-        try:
-            if not self.samefile(other_path):
-                return
-        except (OSError, ValueError):
-            return
-        err = OSError(EINVAL, "Source and target are the same file")
-        err.filename = str(self)
-        err.filename2 = str(other_path)
-        raise err
-
-    def _ensure_distinct_path(self, other_path):
-        """
-        Raise OSError(EINVAL) if the other path is within this path.
-        """
-        # Note: there is no straightforward, foolproof algorithm to determine
-        # if one directory is within another (a particularly perverse example
-        # would be a single network share mounted in one location via NFS, and
-        # in another location via CIFS), so we simply checks whether the
-        # other path is lexically equal to, or within, this path.
-        if self == other_path:
-            err = OSError(EINVAL, "Source and target are the same path")
-        elif self in other_path.parents:
-            err = OSError(EINVAL, "Source path is a parent of target path")
-        else:
-            return
-        err.filename = str(self)
-        err.filename2 = str(other_path)
-        raise err
-
     def open(self, mode='r', buffering=-1, encoding=None,
              errors=None, newline=None):
         """
@@ -632,6 +724,12 @@ class PathBase(PurePathBase):
         with self.open(mode='w', encoding=encoding, errors=errors, newline=newline) as f:
             return f.write(data)
 
+    def _join_dir_entry(self, dir_entry):
+        """Construct a new path object from the given os.DirEntry-like object,
+        which should have been generated by calling scandir() on this path.
+        """
+        return self.joinpath(dir_entry.name)
+
     def scandir(self):
         """Yield os.DirEntry objects of the directory contents.
 
@@ -647,8 +745,8 @@ class PathBase(PurePathBase):
         special entries '.' and '..' are not included.
         """
         with self.scandir() as entries:
-            names = [entry.name for entry in entries]
-        return map(self.joinpath, names)
+            entries = list(entries)
+        return map(self._join_dir_entry, entries)
 
     def _glob_selector(self, parts, case_sensitive, recurse_symlinks):
         if case_sensitive is None:
@@ -704,7 +802,7 @@ class PathBase(PurePathBase):
                         try:
                             if entry.is_dir(follow_symlinks=follow_symlinks):
                                 if not top_down:
-                                    paths.append(path.joinpath(name))
+                                    paths.append(path._join_dir_entry(entry))
                                 dirnames.append(name)
                             else:
                                 filenames.append(name)
@@ -790,13 +888,6 @@ class PathBase(PurePathBase):
         """
         raise UnsupportedOperation(self._unsupported_msg('symlink_to()'))
 
-    def _symlink_to_target_of(self, link):
-        """
-        Make this path a symlink with the same target as the given link. This
-        is used by copy().
-        """
-        self.symlink_to(link.readlink())
-
     def hardlink_to(self, target):
         """
         Make this path a hard link pointing to the same file as *target*.
@@ -817,10 +908,7 @@ class PathBase(PurePathBase):
         """
         raise UnsupportedOperation(self._unsupported_msg('mkdir()'))
 
-    # Metadata keys supported by this path type.
-    _readable_metadata = _writable_metadata = frozenset()
-
-    def _read_metadata(self, keys=None, *, follow_symlinks=True):
+    def _read_metadata(self, metadata_keys, *, follow_symlinks=True, dir_entry=None):
         """
         Returns path metadata as a dict with string keys.
         """
@@ -832,33 +920,6 @@ class PathBase(PurePathBase):
         """
         raise UnsupportedOperation(self._unsupported_msg('_write_metadata()'))
 
-    def _copy_metadata(self, target, *, follow_symlinks=True):
-        """
-        Copies metadata (permissions, timestamps, etc) from this path to target.
-        """
-        # Metadata types supported by both source and target.
-        keys = self._readable_metadata & target._writable_metadata
-        if keys:
-            metadata = self._read_metadata(keys, follow_symlinks=follow_symlinks)
-            target._write_metadata(metadata, follow_symlinks=follow_symlinks)
-
-    def _copy_file(self, target):
-        """
-        Copy the contents of this file to the given target.
-        """
-        self._ensure_different_file(target)
-        with self.open('rb') as source_f:
-            try:
-                with target.open('wb') as target_f:
-                    copyfileobj(source_f, target_f)
-            except IsADirectoryError as e:
-                if not target.exists():
-                    # Raise a less confusing exception.
-                    raise FileNotFoundError(
-                        f'Directory does not exist: {target}') from e
-                else:
-                    raise
-
     def copy(self, target, *, follow_symlinks=True, dirs_exist_ok=False,
              preserve_metadata=False):
         """
@@ -866,25 +927,8 @@ class PathBase(PurePathBase):
         """
         if not isinstance(target, PathBase):
             target = self.with_segments(target)
-        self._ensure_distinct_path(target)
-        stack = [(self, target)]
-        while stack:
-            src, dst = stack.pop()
-            if not follow_symlinks and src.is_symlink():
-                dst._symlink_to_target_of(src)
-                if preserve_metadata:
-                    src._copy_metadata(dst, follow_symlinks=False)
-            elif src.is_dir():
-                children = src.iterdir()
-                dst.mkdir(exist_ok=dirs_exist_ok)
-                stack.extend((child, dst.joinpath(child.name))
-                             for child in children)
-                if preserve_metadata:
-                    src._copy_metadata(dst)
-            else:
-                src._copy_file(dst)
-                if preserve_metadata:
-                    src._copy_metadata(dst)
+        copier = target._copier(follow_symlinks, dirs_exist_ok, preserve_metadata)
+        copier.copy(self, target)
         return target
 
     def copy_into(self, target_dir, *, follow_symlinks=True,
@@ -931,7 +975,7 @@ class PathBase(PurePathBase):
         """
         Recursively move this file or directory tree to the given destination.
         """
-        self._ensure_different_file(target)
+        target._copier.ensure_different_files(self, target)
         try:
             return self.replace(target)
         except UnsupportedOperation:
