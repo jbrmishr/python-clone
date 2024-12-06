@@ -312,7 +312,7 @@ non-empty format specification typically modifies the result.
 The general form of a *standard format specifier* is:
 
 .. productionlist:: format-spec
-   format_spec: [[`fill`]`align`][`sign`]["z"]["#"]["0"][`width`][`grouping_option`]["." `precision`][`type`]
+   format_spec: [[`fill`]`align`][`sign`]["z"]["#"]["0"][`width`][`grouping_option`]["." `precision` [`grouping_option`]][`type`]
    fill: <any character>
    align: "<" | ">" | "=" | "^"
    sign: "+" | "-" | " "
@@ -448,6 +448,13 @@ types ``'g'`` or ``'G'``.  For string presentation types the field
 indicates the maximum field size - in other words, how many characters will be
 used from the field content.  The *precision* is not allowed for integer
 presentation types.
+
+The ``'_'`` or ``','`` option after *precision* means the use of an underscore
+or a comma for a thousands separator of the fractional part for floating-point
+presentation types.
+
+.. versionchanged:: 3.14
+   Support thousands separators for the fractional part.
 
 Finally, the *type* determines how the data should be presented.
 
@@ -695,10 +702,18 @@ Replacing ``%x`` and ``%o`` and converting the value to different bases::
    >>> "int: {0:d};  hex: {0:#x};  oct: {0:#o};  bin: {0:#b}".format(42)
    'int: 42;  hex: 0x2a;  oct: 0o52;  bin: 0b101010'
 
-Using the comma as a thousands separator::
+Using the comma or the underscore as a thousands separator::
 
    >>> '{:,}'.format(1234567890)
    '1,234,567,890'
+   >>> '{:_}'.format(1234567890)
+   '1_234_567_890'
+   >>> '{:_}'.format(123456789.123456789)
+   '123_456_789.12345679'
+   >>> '{:._}'.format(123456789.123456789)
+   '123456789.123_456_79'
+   >>> '{:_._}'.format(123456789.123456789)
+   '123_456_789.123_456_79'
 
 Expressing a percentage::
 
