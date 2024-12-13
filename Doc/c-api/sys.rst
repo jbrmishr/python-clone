@@ -216,6 +216,32 @@ Operating System Utilities
       The function now uses the UTF-8 encoding on Windows if
       :c:member:`PyPreConfig.legacy_windows_fs_encoding` is zero.
 
+.. c:function:: FILE* Py_fopen(PyObject *path, const char *mode)
+
+   Similar to the :c:func:`!fopen` function, but *path* is a Python object and
+   an exception is set on error.
+
+   *path* must be a :class:`str` object or a :class:`bytes` object.
+
+   On success, return the new file object.
+   On error, set an exception and return ``NULL``.
+
+   The file must be closed by :c:func:`Py_fclose` rather than calling directly
+   ``fclose()``.
+
+   The file descriptor is created non-inheritable (:pep:`446`).
+
+   The caller must hold the GIL.
+
+   .. versionadded:: next
+
+
+.. c:function:: int Py_fclose(FILE *file)
+
+   Call ``fclose(file)``.
+
+   .. versionadded:: next
+
 
 .. _systemfunctions:
 
