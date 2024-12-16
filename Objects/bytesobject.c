@@ -46,7 +46,7 @@ Py_LOCAL_INLINE(Py_ssize_t) _PyBytesWriter_GetSize(_PyBytesWriter *writer,
 static inline PyObject* bytes_get_empty(void)
 {
     PyObject *empty = &EMPTY->ob_base.ob_base;
-    assert(_Py_IsImmortalLoose(empty));
+    assert(_Py_IsImmortal(empty));
     return empty;
 }
 
@@ -119,7 +119,7 @@ PyBytes_FromStringAndSize(const char *str, Py_ssize_t size)
     }
     if (size == 1 && str != NULL) {
         op = CHARACTER(*str & 255);
-        assert(_Py_IsImmortalLoose(op));
+        assert(_Py_IsImmortal(op));
         return (PyObject *)op;
     }
     if (size == 0) {
@@ -155,7 +155,7 @@ PyBytes_FromString(const char *str)
     }
     else if (size == 1) {
         op = CHARACTER(*str & 255);
-        assert(_Py_IsImmortalLoose(op));
+        assert(_Py_IsImmortal(op));
         return (PyObject *)op;
     }
 
@@ -1638,7 +1638,7 @@ bytes_subscript(PyObject *op, PyObject* item)
                                             &stop, step);
 
         if (slicelength <= 0) {
-            return PyBytes_FromStringAndSize("", 0);
+            return Py_GetConstant(Py_CONSTANT_EMPTY_BYTES);
         }
         else if (start == 0 && step == 1 &&
                  slicelength == PyBytes_GET_SIZE(self) &&
@@ -2543,7 +2543,12 @@ _PyBytes_FromHex(PyObject *string, int use_bytearray)
 
         bot = _PyLong_DigitValue[*str];
         if (bot >= 16) {
-            invalid_char = str - PyUnicode_1BYTE_DATA(string);
+            /* Check if we had a second digit */
+            if (str >= end){
+                invalid_char = -1;
+            } else {
+                invalid_char = str - PyUnicode_1BYTE_DATA(string);
+            }
             goto error;
         }
         str++;
@@ -2554,9 +2559,14 @@ _PyBytes_FromHex(PyObject *string, int use_bytearray)
     return _PyBytesWriter_Finish(&writer, buf);
 
   error:
-    PyErr_Format(PyExc_ValueError,
-                 "non-hexadecimal number found in "
-                 "fromhex() arg at position %zd", invalid_char);
+    if (invalid_char == -1) {
+        PyErr_SetString(PyExc_ValueError,
+                        "fromhex() arg must contain an even number of hexadecimal digits");
+    } else {
+        PyErr_Format(PyExc_ValueError,
+                     "non-hexadecimal number found in "
+                     "fromhex() arg at position %zd", invalid_char);
+    }
     _PyBytesWriter_Dealloc(&writer);
     return NULL;
 }
@@ -3080,6 +3090,7 @@ PyTypeObject PyBytes_Type = {
     bytes_alloc,                                /* tp_alloc */
     bytes_new,                                  /* tp_new */
     PyObject_Free,                              /* tp_free */
+    .tp_version_tag = _Py_TYPE_VERSION_BYTES,
 };
 
 void
@@ -3195,6 +3206,7 @@ _PyBytes_Resize(PyObject **pv, Py_ssize_t newsize)
 #ifdef Py_TRACE_REFS
     _Py_ForgetReference(v);
 #endif
+    _PyReftracerTrack(v, PyRefTracer_DESTROY);
     *pv = (PyObject *)
         PyObject_Realloc(v, PyBytesObject_SIZE + newsize);
     if (*pv == NULL) {
