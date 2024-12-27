@@ -186,23 +186,25 @@ def simplefilter(action, category=Warning, lineno=0, append=False):
     _add_filter(action, None, category, None, lineno, append=append)
 
 def _add_filter(*item, append):
-    # Remove possible duplicate filters, so new one will be placed
-    # in correct place. If append=True and duplicate exists, do nothing.
-    if not append:
-        try:
-            filters.remove(item)
-        except ValueError:
-            pass
-        filters.insert(0, item)
-    else:
-        if item not in filters:
-            filters.append(item)
-    _filters_mutated()
+    with _lock:
+        if not append:
+            # Remove possible duplicate filters, so new one will be placed
+            # in correct place. If append=True and duplicate exists, do nothing.
+            try:
+                filters.remove(item)
+            except ValueError:
+                pass
+            filters.insert(0, item)
+        else:
+            if item not in filters:
+                filters.append(item)
+        _filters_mutated()
 
 def resetwarnings():
     """Clear the list of warning filters, so that no filters are active."""
-    filters[:] = []
-    _filters_mutated()
+    with _lock:
+        filters[:] = []
+        _filters_mutated()
 
 class _OptionError(Exception):
     """Exception used by option processing helpers."""
@@ -488,11 +490,12 @@ class catch_warnings(object):
         if self._entered:
             raise RuntimeError("Cannot enter %r twice" % self)
         self._entered = True
-        self._filters = self._module.filters
-        self._module.filters = self._filters[:]
-        self._module._filters_mutated()
-        self._showwarning = self._module.showwarning
-        self._showwarnmsg_impl = self._module._showwarnmsg_impl
+        with _lock:
+            self._filters = self._module.filters
+            self._module.filters = self._filters[:]
+            self._module._filters_mutated()
+            self._showwarning = self._module.showwarning
+            self._showwarnmsg_impl = self._module._showwarnmsg_impl
         if self._filter is not None:
             simplefilter(*self._filter)
         if self._record:
@@ -508,10 +511,11 @@ class catch_warnings(object):
     def __exit__(self, *exc_info):
         if not self._entered:
             raise RuntimeError("Cannot exit %r without entering first" % self)
-        self._module.filters = self._filters
-        self._module._filters_mutated()
-        self._module.showwarning = self._showwarning
-        self._module._showwarnmsg_impl = self._showwarnmsg_impl
+        with _lock:
+            self._module.filters = self._filters
+            self._module._filters_mutated()
+            self._module.showwarning = self._showwarning
+            self._module._showwarnmsg_impl = self._showwarnmsg_impl
 
 
 class deprecated:
@@ -701,14 +705,30 @@ def _warn_unawaited_coroutine(coro):
 # If either if the compiled regexs are None, match anything.
 try:
     from _warnings import (filters, _defaultaction, _onceregistry,
-                           warn, warn_explicit, _filters_mutated)
+                           warn, warn_explicit, _filters_mutated,
+                           _acquire_lock, _release_lock,
+    )
     defaultaction = _defaultaction
     onceregistry = _onceregistry
     _warnings_defaults = True
+
+    class _Lock:
+        def __enter__(self):
+            _acquire_lock()
+            return self
+
+        def __exit__(self, *args):
+            _release_lock()
+
+    _lock = _Lock()
+
 except ImportError:
     filters = []
     defaultaction = "default"
     onceregistry = {}
+
+    import _thread
+    _lock = _thread.LockType()
 
     _filters_version = 1
 

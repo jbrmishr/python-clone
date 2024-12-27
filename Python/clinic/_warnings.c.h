@@ -9,6 +9,40 @@ preserve
 #include "pycore_abstract.h"      // _PyNumber_Index()
 #include "pycore_modsupport.h"    // _PyArg_UnpackKeywords()
 
+PyDoc_STRVAR(warnings_acquire_lock__doc__,
+"_acquire_lock($module, /)\n"
+"--\n"
+"\n");
+
+#define WARNINGS_ACQUIRE_LOCK_METHODDEF    \
+    {"_acquire_lock", (PyCFunction)warnings_acquire_lock, METH_NOARGS, warnings_acquire_lock__doc__},
+
+static PyObject *
+warnings_acquire_lock_impl(PyObject *module);
+
+static PyObject *
+warnings_acquire_lock(PyObject *module, PyObject *Py_UNUSED(ignored))
+{
+    return warnings_acquire_lock_impl(module);
+}
+
+PyDoc_STRVAR(warnings_release_lock__doc__,
+"_release_lock($module, /)\n"
+"--\n"
+"\n");
+
+#define WARNINGS_RELEASE_LOCK_METHODDEF    \
+    {"_release_lock", (PyCFunction)warnings_release_lock, METH_NOARGS, warnings_release_lock__doc__},
+
+static PyObject *
+warnings_release_lock_impl(PyObject *module);
+
+static PyObject *
+warnings_release_lock(PyObject *module, PyObject *Py_UNUSED(ignored))
+{
+    return warnings_release_lock_impl(module);
+}
+
 PyDoc_STRVAR(warnings_warn__doc__,
 "warn($module, /, message, category=None, stacklevel=1, source=None, *,\n"
 "     skip_file_prefixes=<unrepresentable>)\n"
@@ -246,4 +280,4 @@ warnings_filters_mutated(PyObject *module, PyObject *Py_UNUSED(ignored))
 {
     return warnings_filters_mutated_impl(module);
 }
-/*[clinic end generated code: output=ed02c0f521a03a37 input=a9049054013a1b77]*/
+/*[clinic end generated code: output=811acca23a708c61 input=a9049054013a1b77]*/

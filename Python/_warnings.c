@@ -232,6 +232,47 @@ get_warnings_attr(PyInterpreterState *interp, PyObject *attr, int try_import)
     return obj;
 }
 
+/*[clinic input]
+_acquire_lock as warnings_acquire_lock
+
+[clinic start generated code]*/
+
+static PyObject *
+warnings_acquire_lock_impl(PyObject *module)
+/*[clinic end generated code: output=594313457d1bf8e1 input=46ec20e55acca52f]*/
+{
+    PyInterpreterState *interp = get_current_interp();
+    if (interp == NULL) {
+        return NULL;
+    }
+
+    WarningsState *st = warnings_get_state(interp);
+    assert(st != NULL);
+
+    _PyMutex_Lock(&st->mutex);
+    Py_RETURN_NONE;
+}
+
+/*[clinic input]
+_release_lock as warnings_release_lock
+
+[clinic start generated code]*/
+
+static PyObject *
+warnings_release_lock_impl(PyObject *module)
+/*[clinic end generated code: output=d73d5a8789396750 input=ea01bb77870c5693]*/
+{
+    PyInterpreterState *interp = get_current_interp();
+    if (interp == NULL) {
+        return NULL;
+    }
+
+    WarningsState *st = warnings_get_state(interp);
+    assert(st != NULL);
+
+    _PyMutex_Unlock(&st->mutex);
+    Py_RETURN_NONE;
+}
 
 static PyObject *
 get_once_registry(PyInterpreterState *interp)
@@ -1181,13 +1222,13 @@ warnings_filters_mutated_impl(PyObject *module)
     WarningsState *st = warnings_get_state(interp);
     assert(st != NULL);
 
-    Py_BEGIN_CRITICAL_SECTION_MUT(&st->mutex);
+    // Note that the lock must be held by the caller.
+    assert(PyMutex_IsLocked(&st->mutex));
+
     st->filters_version++;
-    Py_END_CRITICAL_SECTION();
 
     Py_RETURN_NONE;
 }
-
 
 /* Function to issue a warning message; may raise an exception. */
 
@@ -1465,6 +1506,8 @@ static PyMethodDef warnings_functions[] = {
     WARNINGS_WARN_METHODDEF
     WARNINGS_WARN_EXPLICIT_METHODDEF
     WARNINGS_FILTERS_MUTATED_METHODDEF
+    WARNINGS_ACQUIRE_LOCK_METHODDEF
+    WARNINGS_RELEASE_LOCK_METHODDEF
     /* XXX(brett.cannon): add showwarning? */
     /* XXX(brett.cannon): Reasonable to add formatwarning? */
     {NULL, NULL}                /* sentinel */
