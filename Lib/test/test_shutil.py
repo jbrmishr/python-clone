@@ -1101,6 +1101,32 @@ class TestCopyTree(BaseTest, unittest.TestCase):
         rv = shutil.copytree(src_dir, dst_dir)
         self.assertEqual(['pol'], os.listdir(rv))
 
+    def test_copytree_to_itself_gives_sensible_error_message(self):
+        base_dir = self.mkdtemp()
+        src_dir = os.path.join(base_dir, "src")
+        os.makedirs(src_dir)
+        create_file((src_dir, "somefilename"), "somecontent")
+        _assert_are_the_same_file_is_raised(src_dir, src_dir)
+
+    def test_copytree_to_backpointing_symlink_gives_sensible_error_message(self):
+        base_dir = self.mkdtemp()
+        src_dir = os.path.join(base_dir, "src")
+        target_dir = os.path.join(base_dir, "target")
+        os.makedirs(src_dir)
+        os.makedirs(target_dir)
+        some_file = os.path.join(src_dir, "somefilename")
+        create_file(some_file, "somecontent")
+        os.symlink(some_file, os.path.join(target_dir, "somefilename"))
+        _assert_are_the_same_file_is_raised(src_dir, target_dir)
+
+def _assert_are_the_same_file_is_raised(src_dir, target_dir):
+    try:
+        shutil.copytree(src_dir, target_dir, dirs_exist_ok=True)
+        raise Exception("copytree did not raise")
+    except Error as error:
+        assert len(error.args[0]) == 1
+        assert "are the same file" in error.args[0][0][2]
+
 class TestCopy(BaseTest, unittest.TestCase):
 
     ### shutil.copymode
