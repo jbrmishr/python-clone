@@ -1125,7 +1125,10 @@ def _assert_are_the_same_file_is_raised(src_dir, target_dir):
         raise Exception("copytree did not raise")
     except Error as error:
         assert len(error.args[0]) == 1
-        assert "are the same file" in error.args[0][0][2]
+        if sys.platform == "win32":
+            assert "it is being used by another process" in error.args[0][0][2]
+        else:
+            assert "are the same file" in error.args[0][0][2]
 
 class TestCopy(BaseTest, unittest.TestCase):
 
