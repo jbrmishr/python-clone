@@ -1108,6 +1108,7 @@ class TestCopyTree(BaseTest, unittest.TestCase):
         create_file((src_dir, "somefilename"), "somecontent")
         _assert_are_the_same_file_is_raised(src_dir, src_dir)
 
+    @os_helper.skip_unless_symlink
     def test_copytree_to_backpointing_symlink_gives_sensible_error_message(self):
         base_dir = self.mkdtemp()
         src_dir = os.path.join(base_dir, "src")
