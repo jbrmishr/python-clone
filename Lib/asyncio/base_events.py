@@ -477,7 +477,7 @@ class BaseEventLoop(events.AbstractEventLoop):
                 task = self._task_factory(self, coro, context=context)
                 task.set_name(name)
             else:
-                task = self._task_factory(self, coro, context=context, eager=eager_start, name=name)
+                task = self._task_factory(self, coro, context=context, eager_start=eager_start, name=name)
 
         return task
 
