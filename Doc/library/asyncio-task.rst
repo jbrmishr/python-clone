@@ -253,7 +253,7 @@ Creating Tasks
    An optional keyword-only *eager_start* argument allows specifying
    if the task should execute eagerly during the call to create_task,
    or be scheduled later. If the default ``None`` is passed the mode set
-   by :meth:`AbstractEventLoop.set_task_factory` will be used.
+   by :meth:`loop.set_task_factory` will be used.
 
    The task is executed in the loop returned by :func:`get_running_loop`,
    :exc:`RuntimeError` is raised if there is no running loop in

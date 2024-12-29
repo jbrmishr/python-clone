@@ -379,7 +379,7 @@ Creating Futures and Tasks
    An optional keyword-only *eager_start* argument allows specifying
    if the task should execute eagerly during the call to create_task,
    or be scheduled later. If the default ``None`` is passed the mode set
-   by :meth:`AbstractEventLoop.set_task_factory` will be used.
+   by :meth:`loop.set_task_factory` will be used.
 
    .. versionchanged:: 3.8
       Added the *name* parameter.
