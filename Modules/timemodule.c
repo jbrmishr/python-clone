@@ -72,6 +72,9 @@ module time
 
 /* Forward declarations */
 static int pysleep(PyTime_t timeout);
+#ifndef MS_WINDOWS
+static int pysleep_zero_posix(void);
+#endif
 
 
 typedef struct {
@@ -2213,6 +2216,12 @@ static int
 pysleep(PyTime_t timeout)
 {
     assert(timeout >= 0);
+    assert(!PyErr_Occurred());
+#ifndef MS_WINDOWS
+    if (timeout == 0) {
+        return pysleep_zero_posix();
+    }
+#endif
 
 #ifndef MS_WINDOWS
 #ifdef HAVE_CLOCK_NANOSLEEP
@@ -2390,3 +2399,42 @@ error:
     return -1;
 #endif
 }
+
+
+#ifndef MS_WINDOWS
+// time.sleep(0) optimized implementation.
+// On error, raise an exception and return -1.
+// On success, return 0.
+static int
+pysleep_zero_posix(void)
+{
+    assert(!PyErr_Occurred());
+
+    int ret;
+    // POSIX-compliant select(2) allows the 'timeout' parameter to
+    // be modified but also mandates that the function should return
+    // immediately if *both* structure's fields are zero (which is
+    // the case here).
+    //
+    // However, since System V (but not BSD) variant typically sets
+    // the timeout before returning (but does not specify whether
+    // this is also the case for zero timeouts), we prefer supplying
+    // a fresh timeout everytime.
+    struct timeval zero = {0, 0};
+    Py_BEGIN_ALLOW_THREADS
+    ret = select(0, NULL, NULL, NULL, &zero);
+    Py_END_ALLOW_THREADS
+    if (ret == 0) {
+        return 0;
+    }
+    if (errno != EINTR) {
+        PyErr_SetFromErrno(PyExc_OSError);
+        return -1;
+    }
+    /* sleep was interrupted by SIGINT */
+    if (PyErr_CheckSignals()) {
+        return -1;
+    }
+    return 0;
+}
+#endif
