@@ -1,3 +1,4 @@
+import _pyio
 import array
 import contextlib
 import importlib.util
@@ -3487,6 +3488,76 @@ class StripExtraTests(unittest.TestCase):
             b"zz", zipfile._Extra.strip(b"zz", (self.ZIP64_EXTRA,)))
         self.assertEqual(
             b"zzz", zipfile._Extra.strip(b"zzz", (self.ZIP64_EXTRA,)))
+
+
+class StatIO(_pyio.BytesIO):
+    """Buffer which remembers the number of bytes that were read."""
+
+    def __init__(self):
+        super().__init__()
+        self.bytes_read = 0
+
+    def read(self, size=-1):
+        bs = super().read(size)
+        self.bytes_read += len(bs)
+        return bs
+
+
+class StoredZipExtFileRandomReadTest(unittest.TestCase):
+    def test_random_read(self):
+
+        sio = StatIO()
+        # 20000 bytes
+        txt = b'0123456789' * 2000
+
+        # The seek length must be greater than ZipExtFile.MIN_READ_SIZE
+        # as `ZipExtFile._read2()` reads in blocks of this size and we
+        # need to seek out of the buffered data
+        min_size = zipfile.ZipExtFile.MIN_READ_SIZE
+        self.assertGreaterEqual(10002, min_size)  # for forward seek test
+        self.assertGreaterEqual(5003, min_size)  # for backward seek test
+        # The read length must be less than MIN_READ_SIZE, since we assume that
+        # only 1 block is read in the test.
+        self.assertGreaterEqual(min_size, 100)  # for read() calls
+
+        with zipfile.ZipFile(sio, "w", compression=zipfile.ZIP_STORED) as zipf:
+            zipf.writestr("foo.txt", txt)
+
+        # check random seek and read on a file
+        with zipfile.ZipFile(sio, "r") as zipf:
+            with zipf.open("foo.txt", "r") as fp:
+                # Test this optimized read hasn't rewound and read from the
+                # start of the file (as in the case of the unoptimized path)
+
+                # forward seek
+                old_count = sio.bytes_read
+                fp.seek(10002, os.SEEK_CUR)
+                self.assertEqual(fp.tell(), 10002)
+                self.assertEqual(fp._left, fp._compress_left)
+                arr = fp.read(100)
+                self.assertEqual(fp.tell(), 10102)
+                self.assertEqual(arr, txt[10002:10102])
+                self.assertEqual(fp._left, fp._compress_left)
+                d = sio.bytes_read - old_count
+                self.assertLessEqual(d, min_size)
+
+                # backward seek
+                old_count = sio.bytes_read
+                fp.seek(-5003, os.SEEK_CUR)
+                self.assertEqual(fp.tell(), 5099)  # 5099 = 10102 - 5003
+                self.assertEqual(fp._left, fp._compress_left)
+                arr = fp.read(100)
+                self.assertEqual(fp.tell(), 5199)
+                self.assertEqual(arr, txt[5099:5199])
+                self.assertEqual(fp._left, fp._compress_left)
+                d = sio.bytes_read - old_count
+                self.assertLessEqual(d, min_size)
+
+                # eof flags test
+                fp.seek(0, os.SEEK_END)
+                self.assertTrue(fp._eof)
+                fp.seek(12345, os.SEEK_SET)
+                self.assertFalse(fp._eof)
 
 
 if __name__ == "__main__":
