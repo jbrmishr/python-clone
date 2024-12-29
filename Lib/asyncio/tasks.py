@@ -385,7 +385,7 @@ else:
 
 
 def create_task(coro, *, name=None, context=None, eager_start=None):
-    """Schedule the execution of a coroutine object in a spawn task.
+    """Schedule or begin the execution of a coroutine object in a task.
 
     Return a Task object.
     """
