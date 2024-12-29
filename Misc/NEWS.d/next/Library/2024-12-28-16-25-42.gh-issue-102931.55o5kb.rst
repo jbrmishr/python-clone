@@ -1,1 +1,2 @@
-Make exception from copy_directory readable when SameFileError is raised.
+Make exception from :func:`shutil.copy_directory` readable when a
+:exc:`shutil.SameFileError` is raised.

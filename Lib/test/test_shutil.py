@@ -1103,14 +1103,16 @@ class TestCopyTree(BaseTest, unittest.TestCase):
 
     def test_copytree_to_itself_gives_sensible_error_message(self):
         base_dir = self.mkdtemp()
+        self.addCleanup(shutil.rmtree, base_dir, ignore_errors=True)
         src_dir = os.path.join(base_dir, "src")
         os.makedirs(src_dir)
         create_file((src_dir, "somefilename"), "somecontent")
-        _assert_are_the_same_file_is_raised(src_dir, src_dir)
+        self._assert_are_the_same_file_is_raised(src_dir, src_dir)
 
     @os_helper.skip_unless_symlink
     def test_copytree_to_backpointing_symlink_gives_sensible_error_message(self):
         base_dir = self.mkdtemp()
+        self.addCleanup(shutil.rmtree, base_dir, ignore_errors=True)
         src_dir = os.path.join(base_dir, "src")
         target_dir = os.path.join(base_dir, "target")
         os.makedirs(src_dir)
@@ -1118,18 +1120,19 @@ class TestCopyTree(BaseTest, unittest.TestCase):
         some_file = os.path.join(src_dir, "somefilename")
         create_file(some_file, "somecontent")
         os.symlink(some_file, os.path.join(target_dir, "somefilename"))
-        _assert_are_the_same_file_is_raised(src_dir, target_dir)
+        self._assert_are_the_same_file_is_raised(src_dir, target_dir)
 
-def _assert_are_the_same_file_is_raised(src_dir, target_dir):
-    try:
-        shutil.copytree(src_dir, target_dir, dirs_exist_ok=True)
-        raise Exception("copytree did not raise")
-    except Error as error:
-        assert len(error.args[0]) == 1
-        if sys.platform == "win32":
-            assert "it is being used by another process" in error.args[0][0][2]
-        else:
-            assert "are the same file" in error.args[0][0][2]
+    def _assert_are_the_same_file_is_raised(self, src_dir, target_dir):
+        try:
+            shutil.copytree(src_dir, target_dir, dirs_exist_ok=True)
+            self.fail("shutil.Error should have been raised")
+        except Error as error:
+            self.assertEqual(len(error.args[0]), 1)
+            if sys.platform == "win32":
+                self.assertIn("it is being used by another process", error.args[0][0][2])
+            else:
+                self.assertIn("are the same file", error.args[0][0][2])
+
 
 class TestCopy(BaseTest, unittest.TestCase):
 

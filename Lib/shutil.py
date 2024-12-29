@@ -524,16 +524,16 @@ def _copytree(entries, src, dst, symlinks, ignore, copy_function,
                     else:
                         copy_function(srcobj, dstname)
             elif srcentry.is_dir():
+                # Will raise shutil.Error containing multiple exceptions gathered
+                # from recursion
                 copytree(srcobj, dstname, symlinks, ignore, copy_function,
                          ignore_dangling_symlinks, dirs_exist_ok)
             else:
-                # Will raise a SpecialFileError for unsupported file types
+                # Can raise SpecialFileError or SameFileError
                 copy_function(srcobj, dstname)
         except SameFileError as err:
             errors.append((srcname, dstname, str(err)))
         except Error as err:
-            # catch the Error from the recursive copytree so that we can
-            # continue with other files
             errors.extend(err.args[0])
         except OSError as why:
             errors.append((srcname, dstname, str(why)))
